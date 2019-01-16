@@ -147,7 +147,7 @@ def training_and_testing(argv):
         'result_dim': len(data_reader.label_cols),  # Currently is 18
         'learning_rate': 0.005,
         'l1_strength': 0,
-        'l2_strength': 0.005,
+        'l2_strength': 0.002,
         'feature_columns': data_reader.tf_feature_columns,
         'label_columns': data_reader.tf_label_columns
     }

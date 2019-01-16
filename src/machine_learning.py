@@ -153,8 +153,8 @@ def training_and_testing(argv):
     }
 
     train_spec = tf.estimator.TrainSpec(
-        input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size  )
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn)
+        input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size)
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=60)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(

@@ -145,7 +145,7 @@ def training_and_testing(argv):
         'hidden_2_dim': 32,  # 2nd layer number of neurons
         'input_dim': len(data_reader.feature_cols),  # Currently is 36
         'result_dim': len(data_reader.label_cols),  # Currently is 18
-        'learning_rate': 0.005,
+        'learning_rate': 0.001,
         'l1_strength': 0,
         'l2_strength': 0.002,
         'feature_columns': data_reader.tf_feature_columns,

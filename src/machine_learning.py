@@ -92,7 +92,7 @@ def neural_net(features, params):
         layer_1, params['hidden_2_dim'], activation=tf.nn.leaky_relu, kernel_regularizer=l2_regularizer)
     # Output fully connected layer with a neuron for each class
     out_layer = tf.layers.dense(
-        layer_2, params['result_dim'], activation=tf.nn.relu, kernel_regularizer=l2_regularizer)
+        layer_2, params['result_dim'], kernel_regularizer=l2_regularizer)
     return out_layer
 
 
@@ -128,11 +128,12 @@ def model_fn(features, labels, mode, params):
 def training_and_testing(argv):
     # Parameters
     num_steps = 1000
-    batch_size = 64
+    batch_size = 32
     train_epochs = 10000
 
     display_step = 1000
     save_checkpoints_steps = 500
+    keep_checkpoint_max = 3
     epochs_per_eval = 10
 
     data_reader = DataEnv(
@@ -145,20 +146,20 @@ def training_and_testing(argv):
         'hidden_2_dim': 32,  # 2nd layer number of neurons
         'input_dim': len(data_reader.feature_cols),  # Currently is 36
         'result_dim': len(data_reader.label_cols),  # Currently is 18
-        'learning_rate': 0.001,
+        'learning_rate': 5e-4,
         'l1_strength': 0,
-        'l2_strength': 0.002,
+        'l2_strength': 5e-4,
         'feature_columns': data_reader.tf_feature_columns,
         'label_columns': data_reader.tf_label_columns
     }
 
     train_spec = tf.estimator.TrainSpec(
         input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size)
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=60)
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=30)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(
-        keep_checkpoint_max=3, save_checkpoints_steps=save_checkpoints_steps)
+        keep_checkpoint_max=keep_checkpoint_max, save_checkpoints_steps=save_checkpoints_steps)
     model = tf.estimator.Estimator(
         model_fn=model_fn, model_dir=config.nn_model_dir, config=run_config, params=params)
 

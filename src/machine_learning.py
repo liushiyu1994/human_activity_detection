@@ -128,16 +128,16 @@ def model_fn(features, labels, mode, params):
 def training_and_testing(argv):
     # Parameters
     num_steps = 1000
-    batch_size = 128
-    train_epochs = 1e5
+    batch_size = 64
+    train_epochs = 100000
 
-    display_step = 100
-    save_checkpoints_steps = 1000
-    epochs_per_eval = 2
+    display_step = 1000
+    save_checkpoints_steps = 2000
+    epochs_per_eval = 10
 
     data_reader = DataEnv(
         config.training_output_file, config.predicting_features_file,
-        config.predicting_labels_file, batch_size, config.aa_feature_list, epochs_per_eval)
+        config.predicting_labels_file, batch_size, config.aa_feature_list, train_epochs)
 
     # Network Parameters
     params = {
@@ -145,7 +145,7 @@ def training_and_testing(argv):
         'hidden_2_dim': 32,  # 2nd layer number of neurons
         'input_dim': len(data_reader.feature_cols),  # Currently is 36
         'result_dim': len(data_reader.label_cols),  # Currently is 18
-        'learning_rate': 0.1,
+        'learning_rate': 0.005,
         'l1_strength': 0,
         'l2_strength': 0.001,
         'feature_columns': data_reader.tf_feature_columns,
@@ -153,7 +153,7 @@ def training_and_testing(argv):
     }
 
     train_spec = tf.estimator.TrainSpec(input_fn=data_reader.train_input_fn, max_steps=train_epochs // epochs_per_eval)
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=600)
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=300)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(
@@ -169,7 +169,7 @@ def training_and_testing(argv):
 
 
 def main():
-    tf.logging.set_verbosity(tf.logging.INFO)
+    # tf.logging.set_verbosity(tf.logging.INFO)
     # args, unparsed = parser.parse_known_args()
     # tf.app.run(main=training_and_testing, argv=[sys.argv[0]] + unparsed)
     tf.app.run(main=training_and_testing, argv=None)

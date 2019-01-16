@@ -132,7 +132,7 @@ def training_and_testing(argv):
     train_epochs = 1e5
 
     display_step = 100
-    save_step = 1000
+    save_checkpoints_steps = 1000
     epochs_per_eval = 2
 
     data_reader = DataEnv(
@@ -157,7 +157,7 @@ def training_and_testing(argv):
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(
-        keep_checkpoint_max=3, save_checkpoints_steps=save_step)
+        keep_checkpoint_max=3, save_checkpoints_steps=save_checkpoints_steps)
     model = tf.estimator.Estimator(
         model_fn=model_fn, model_dir=config.nn_model_dir, config=run_config, params=params)
 

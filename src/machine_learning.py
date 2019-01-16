@@ -92,7 +92,7 @@ def neural_net(features, params):
         layer_1, params['hidden_2_dim'], activation=tf.nn.leaky_relu, kernel_regularizer=l2_regularizer)
     # Output fully connected layer with a neuron for each class
     out_layer = tf.layers.dense(
-        layer_2, params['result_dim'], kernel_regularizer=l2_regularizer)
+        layer_2, params['result_dim'], activation=tf.nn.relu, kernel_regularizer=l2_regularizer)
     return out_layer
 
 
@@ -132,7 +132,7 @@ def training_and_testing(argv):
     train_epochs = 10000
 
     display_step = 1000
-    save_checkpoints_steps = 5000
+    save_checkpoints_steps = 500
     epochs_per_eval = 10
 
     data_reader = DataEnv(
@@ -147,14 +147,14 @@ def training_and_testing(argv):
         'result_dim': len(data_reader.label_cols),  # Currently is 18
         'learning_rate': 0.005,
         'l1_strength': 0,
-        'l2_strength': 0.001,
+        'l2_strength': 0.005,
         'feature_columns': data_reader.tf_feature_columns,
         'label_columns': data_reader.tf_label_columns
     }
 
     train_spec = tf.estimator.TrainSpec(
         input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size  )
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=180)
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(

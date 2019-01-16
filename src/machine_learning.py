@@ -3,7 +3,7 @@ import pandas as pd
 import tensorflow as tf
 import sklearn.model_selection
 
-import src.config as config
+import config as config
 
 
 class DataEnv(object):

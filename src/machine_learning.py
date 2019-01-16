@@ -58,10 +58,10 @@ class DataEnv(object):
     def loss_of_predict_test(self, prediction_iterator):
         loss_score = 0
         count = 0
-        for prediction_array in prediction_iterator:
+        label_data_array = np.array(self._test_data[self.label_cols])
+        for prediction_array, correct_array in zip(prediction_iterator, label_data_array):
             # prediction_array = np.array([result_dict['predictions'][0]])
             # print(prediction_array[0])
-            correct_array = np.array(self._test_data[self.label_cols])
             loss_score += np.sqrt(np.mean((prediction_array - correct_array)**2))
             count += 1
         return loss_score / count
@@ -129,15 +129,15 @@ def training_and_testing(argv):
     # Parameters
     num_steps = 1000
     batch_size = 64
-    train_epochs = 100000
+    train_epochs = 10000
 
     display_step = 1000
-    save_checkpoints_steps = 2000
+    save_checkpoints_steps = 5000
     epochs_per_eval = 10
 
     data_reader = DataEnv(
         config.training_output_file, config.predicting_features_file,
-        config.predicting_labels_file, batch_size, config.aa_feature_list, train_epochs)
+        config.nn_predicting_labels_file, batch_size, config.aa_feature_list, train_epochs)
 
     # Network Parameters
     params = {
@@ -152,8 +152,9 @@ def training_and_testing(argv):
         'label_columns': data_reader.tf_label_columns
     }
 
-    train_spec = tf.estimator.TrainSpec(input_fn=data_reader.train_input_fn, max_steps=train_epochs // epochs_per_eval)
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=300)
+    train_spec = tf.estimator.TrainSpec(
+        input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size  )
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=180)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(
@@ -169,7 +170,7 @@ def training_and_testing(argv):
 
 
 def main():
-    # tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.set_verbosity(tf.logging.INFO)
     # args, unparsed = parser.parse_known_args()
     # tf.app.run(main=training_and_testing, argv=[sys.argv[0]] + unparsed)
     tf.app.run(main=training_and_testing, argv=None)

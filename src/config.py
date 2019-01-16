@@ -9,6 +9,7 @@ important_features_file = "{}/important_features.xlsx".format(data_direct)
 training_output_file = "{}/output_pickle_selected.gz".format(data_direct)
 predicting_features_file = "{}/predicting_features_pickle.gz".format(data_direct)
 predicting_labels_file = "{}/predicting_labels_pickle.gz".format(data_direct)
+nn_predicting_labels_file = "{}/nn_predicting_labels_pickle.gz".format(data_direct)
 
 aa_feature_list = [str(i) for i in range(501, 519)]
 nn_model_dir = "{}/nn_model".format(data_direct)

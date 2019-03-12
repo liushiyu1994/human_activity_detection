@@ -67,7 +67,7 @@ class DataEnv(object):
 
 
 # Define the neural network
-def neural_net(features, params):
+def neural_network(features, params):
     # TF Estimator input is a dict, in case of multiple inputs
     input_layer = tf.feature_column.input_layer(features, params['feature_columns'])
     if params['l2_strength'] > 1e-5:
@@ -93,7 +93,7 @@ def neural_net(features, params):
 # Define the model function (following TF Estimator Template)
 def model_fn(features, labels, mode, params):
     # Build the neural network
-    final_logits = neural_net(features, params)
+    final_logits = neural_network(features, params)
 
     # If prediction mode, early return
     # predicted_result = tf.nn.softmax(final_logits)
@@ -133,7 +133,7 @@ def training_and_testing(argv):
     # test_running = config.test_running
 
     # Parameters
-    num_steps = 50000
+    num_steps = 40000
     batch_size = 64
     train_epochs = 1000
 

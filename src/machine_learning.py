@@ -108,8 +108,6 @@ def model_fn(features, labels, mode, params):
 
     # Define loss and optimizer
     if mode == tf.estimator.ModeKeys.TRAIN:
-        # optimizer = tf.train.AdagradOptimizer(learning_rate=params['learning_rate'])
-        # train_op = optimizer.minimize(loss_op, global_step=tf.train.get_global_step())
         global_step = tf.train.get_global_step()
         starter_learning_rate = params['learning_rate']
         decay_steps = params['decay_steps']
@@ -132,14 +130,14 @@ def model_fn(features, labels, mode, params):
 
 
 def training_and_testing(argv):
-    test_running = config.test_running
+    # test_running = config.test_running
 
     # Parameters
     num_steps = 50000
     batch_size = 64
     train_epochs = 1000
 
-    display_step = 1000
+    # display_step = 1000
     save_checkpoints_steps = 2000
     keep_checkpoint_max = 3
 
@@ -166,7 +164,6 @@ def training_and_testing(argv):
 
     train_spec = tf.estimator.TrainSpec(
         input_fn=data_reader.train_input_fn, max_steps=num_steps)
-    # max_steps = train_epochs * data_reader.train_size
     eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=5)
 
     # Build the Estimator
@@ -185,8 +182,6 @@ def training_and_testing(argv):
 
 def main():
     tf.logging.set_verbosity(tf.logging.INFO)
-    # args, unparsed = parser.parse_known_args()
-    # tf.app.run(main=training_and_testing, argv=[sys.argv[0]] + unparsed)
     tf.app.run(main=training_and_testing, argv=None)
 
 

@@ -1,3 +1,6 @@
+import gzip
+import pickle
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -8,166 +11,176 @@ import config as config
 
 class DataEnv(object):
     def __init__(
-            self, training_data_file_path, predicting_input_data_file_path,
-            predicting_output_data_file_path, _batch_size, label_cols_list, _num_epochs):
-        raw_training_data = pd.read_pickle(
-            training_data_file_path, compression="gzip").astype(np.float32)
-        raw_predicting_input_data = pd.read_pickle(
-            predicting_input_data_file_path, compression="gzip").astype(np.float32)
-        mean_value = raw_training_data.mean()
-        std_value = raw_training_data.std()
-        norm_training_data = (raw_training_data - mean_value) / std_value
+            self, training_data_file_path, test_data_file_path, parameter_data_path, _final_class_num,
+            _batch_size, _num_epochs):
+        raw_training_data = pd.read_pickle(training_data_file_path, compression="gzip")
+        raw_test_data = pd.read_pickle(test_data_file_path, compression="gzip")
+        with gzip.open(parameter_data_path) as f_in:
+            parameter_data_dict = pickle.load(f_in)
+        self.pca = parameter_data_dict['pca']
+        self.feature_num = parameter_data_dict['select_var_num']
+        self.label_class_num = _final_class_num
 
         self._train_data, self._test_data = sklearn.model_selection.train_test_split(
-            norm_training_data, test_size=0.1)
-        self.label_cols = pd.Index(label_cols_list)
-        self.feature_cols = raw_training_data.columns.difference(self.label_cols)
-        self.input_feature_mean = mean_value[self.feature_cols]
-        self.input_feature_std = std_value[self.feature_cols]
-        self.output_label_mean = mean_value[self.label_cols]
-        self.output_label_std = std_value[self.label_cols]
+            raw_training_data, test_size=0.1)
+        self._final_test_data = raw_test_data
+        self.label_single_col = config.label_col
+        # self.label_cols = pd.Index(["{}_{}".format(config.label_col, i + 1) for i in range(_final_class_num)])
+        self.feature_cols = raw_training_data.columns.difference([self.label_single_col])
+
         self.tf_feature_columns = [tf.feature_column.numeric_column(key=key) for key in self.feature_cols]
-        self.tf_label_columns = [tf.feature_column.numeric_column(key=key) for key in self.label_cols]
+        # self.tf_label_columns = [tf.feature_column.numeric_column(key=key) for key in self.label_cols]
 
         self.train_size = len(self._train_data)
         self.test_size = len(self._test_data)
         self.batch_size = _batch_size
         self.num_epochs = _num_epochs
 
-        self.predicting_input_data = (raw_predicting_input_data - self.input_feature_mean) / self.input_feature_std
-        self.predicting_output_file_path = predicting_output_data_file_path
+        # self.predicting_input_data = (raw_predicting_input_data - self.input_feature_mean) / self.input_feature_std
+        # self.predicting_output_file_path = predicting_output_data_file_path
 
     def train_input_fn(self):
         raw_train_dataset = tf.data.Dataset.from_tensor_slices(
-            (dict(self._train_data[self.feature_cols]), self._train_data[self.label_cols]))
+            (dict(self._train_data[self.feature_cols]), self._train_data[self.label_single_col]))
         train_dataset = raw_train_dataset.shuffle(self.train_size).repeat(self.num_epochs).batch(self.batch_size)
         return train_dataset
 
     def test_input_fn(self):
         raw_test_dataset = tf.data.Dataset.from_tensor_slices(
-            (dict(self._test_data[self.feature_cols]), self._test_data[self.label_cols]))
+            (dict(self._test_data[self.feature_cols]), self._test_data[self.label_single_col]))
         test_dataset = raw_test_dataset.batch(self.batch_size)
         return test_dataset
 
     def predict_test_fn(self):
         raw_test_dataset = tf.data.Dataset.from_tensor_slices(
-            dict(self._test_data[self.feature_cols]))
+            dict(self._final_test_data[self.feature_cols]))
         test_feature_dataset = raw_test_dataset.batch(self.batch_size)
         return test_feature_dataset
 
     def loss_of_predict_test(self, prediction_iterator):
-        loss_score = 0
-        count = 0
-        label_data_array = np.array(self._test_data[self.label_cols])
-        for prediction_array, correct_array in zip(prediction_iterator, label_data_array):
-            # prediction_array = np.array([result_dict['predictions'][0]])
-            # print(prediction_array[0])
-            loss_score += np.sqrt(np.mean((prediction_array - correct_array)**2))
-            count += 1
-        return loss_score / count
-
-    def predict_input_fn(self):
-        raw_predict_dataset = tf.data.Dataset.from_tensor_slices(
-            dict(self.predicting_input_data[self.feature_cols]))
-        predict_dataset = raw_predict_dataset.batch(self.batch_size)
-        return predict_dataset
-
-    def output_predictions(self, prediction_iterator):
-        raw_predicting_output = np.array(
-            [result for result in prediction_iterator])
-        output_data_frame = pd.DataFrame(
-            raw_predicting_output, index=self.predicting_input_data.index, columns=self.label_cols)
-        output_data_frame = output_data_frame * self.output_label_std + self.output_label_mean
-        output_data_frame.to_pickle(self.predicting_output_file_path, compression="gzip")
+        label_data_array = np.array(self._final_test_data[self.label_single_col])
+        prediction_array = list(prediction_iterator)
+        correct_num = np.count_nonzero(label_data_array == prediction_array)
+        # for prediction_value, label_data_value in zip(prediction_iterator, label_data_series):
+        #
+        return correct_num / len(label_data_array)
 
 
 # Define the neural network
 def neural_net(features, params):
     # TF Estimator input is a dict, in case of multiple inputs
     input_layer = tf.feature_column.input_layer(features, params['feature_columns'])
-    l2_regularizer = tf.contrib.layers.l2_regularizer(params['l2_strength'])
-    layer_1 = tf.layers.dense(
-        input_layer, params['hidden_1_dim'], activation=tf.nn.leaky_relu, kernel_regularizer=l2_regularizer)
-    layer_2 = tf.layers.dense(
-        layer_1, params['hidden_2_dim'], activation=tf.nn.leaky_relu, kernel_regularizer=l2_regularizer)
+    if params['l2_strength'] > 1e-5:
+        l2_regularizer = tf.contrib.layers.l2_regularizer(params['l2_strength'])
+    else:
+        l2_regularizer = None
+    hidden_list = params['hidden_list']
+    final_classes = params['result_dim']
+    keep_rate = params['keep_rate']
+    current_layer = input_layer
+    for hidden_unit in hidden_list:
+        current_layer = tf.layers.dense(
+            current_layer, units=hidden_unit, activation=tf.nn.relu, kernel_regularizer=l2_regularizer)
+        if keep_rate < 0.999:
+            dropout_layer = tf.nn.dropout(current_layer, keep_prob=keep_rate)
+            current_layer = dropout_layer
     # Output fully connected layer with a neuron for each class
     out_layer = tf.layers.dense(
-        layer_2, params['result_dim'], kernel_regularizer=l2_regularizer)
+        current_layer, final_classes, kernel_regularizer=l2_regularizer)
     return out_layer
 
 
 # Define the model function (following TF Estimator Template)
 def model_fn(features, labels, mode, params):
     # Build the neural network
-    final_regression = neural_net(features, params)
+    final_logits = neural_net(features, params)
 
     # If prediction mode, early return
+    # predicted_result = tf.nn.softmax(final_logits)
+    predicted_result = tf.argmax(final_logits, 1)
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(
-            mode, predictions=final_regression)
+            mode, predictions=predicted_result)
+            # mode, predictions=predicted_result[:, tf.newaxis])  # Reshape to [-1, 1] form
 
     # label_tensor = tf.feature_column.input_layer(labels, params['label_columns'])
-    loss_op = tf.losses.mean_squared_error(labels, final_regression)
+    loss_op = tf.losses.sparse_softmax_cross_entropy(labels, final_logits)
 
     # Define loss and optimizer
     if mode == tf.estimator.ModeKeys.TRAIN:
-        optimizer = tf.train.AdamOptimizer(learning_rate=params['learning_rate'])
-        train_op = optimizer.minimize(loss_op, global_step=tf.train.get_global_step())
+        # optimizer = tf.train.AdagradOptimizer(learning_rate=params['learning_rate'])
+        # train_op = optimizer.minimize(loss_op, global_step=tf.train.get_global_step())
+        global_step = tf.train.get_global_step()
+        starter_learning_rate = params['learning_rate']
+        decay_steps = params['decay_steps']
+        decay_rate = params['decay_rate']
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step, decay_steps, decay_rate)
+        optimizer = tf.train.MomentumOptimizer(
+            learning_rate=learning_rate, momentum=params['momentum'],
+            use_nesterov=params['nesterov'])
+        train_op = optimizer.minimize(loss_op, global_step=global_step)
 
         return tf.estimator.EstimatorSpec(
             mode=mode, loss=loss_op, train_op=train_op)
 
     else:
         # Evaluate the accuracy of the model
-        square_error_op = tf.metrics.mean_squared_error(labels=labels, predictions=final_regression)
-
+        accuracy = tf.metrics.accuracy(labels=labels, predictions=predicted_result)
+        tf.summary.scalar('accuracy', accuracy[1])
         return tf.estimator.EstimatorSpec(
-            mode=mode, loss=loss_op, eval_metric_ops={'mean_squared_error': square_error_op})
+            mode=mode, loss=loss_op, eval_metric_ops={'accuracy': accuracy})
 
 
 def training_and_testing(argv):
+    test_running = config.test_running
+
     # Parameters
-    num_steps = 1000
-    batch_size = 32
-    train_epochs = 10000
+    num_steps = 50000
+    batch_size = 64
+    train_epochs = 1000
 
     display_step = 1000
-    save_checkpoints_steps = 500
+    save_checkpoints_steps = 2000
     keep_checkpoint_max = 3
-    epochs_per_eval = 10
 
     data_reader = DataEnv(
-        config.training_output_file, config.predicting_features_file,
-        config.nn_predicting_labels_file, batch_size, config.aa_feature_list, train_epochs)
+        config.reduced_train_data_frame_file, config.reduced_test_data_frame_file, config.output_parameter_file,
+        config.activity_num, batch_size, train_epochs)
 
     # Network Parameters
     params = {
-        'hidden_1_dim': 32,  # 1st layer number of neurons
-        'hidden_2_dim': 32,  # 2nd layer number of neurons
-        'input_dim': len(data_reader.feature_cols),  # Currently is 36
-        'result_dim': len(data_reader.label_cols),  # Currently is 18
-        'learning_rate': 1e-5,
+        'hidden_list': [32, 16],
+        'input_dim': data_reader.feature_num,
+        'result_dim': data_reader.label_class_num,
+        'keep_rate': 1,
+        'learning_rate': 5e-3,
+        'decay_rate': 1 - 5e-5,
+        'decay_steps': 1,
+        'momentum': 0.8,
+        'nesterov': True,
         'l1_strength': 0,
-        'l2_strength': 1e-3,
+        'l2_strength': 0,
         'feature_columns': data_reader.tf_feature_columns,
-        'label_columns': data_reader.tf_label_columns
+        'label_column': data_reader.label_single_col
     }
 
     train_spec = tf.estimator.TrainSpec(
-        input_fn=data_reader.train_input_fn, max_steps=train_epochs * data_reader.train_size)
-    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=30)
+        input_fn=data_reader.train_input_fn, max_steps=num_steps)
+    # max_steps = train_epochs * data_reader.train_size
+    eval_spec = tf.estimator.EvalSpec(input_fn=data_reader.test_input_fn, throttle_secs=5)
 
     # Build the Estimator
     run_config = tf.estimator.RunConfig(
-        keep_checkpoint_max=keep_checkpoint_max, save_checkpoints_steps=save_checkpoints_steps)
+        keep_checkpoint_max=keep_checkpoint_max, save_checkpoints_steps=save_checkpoints_steps,
+        log_step_count_steps=1000)
     model = tf.estimator.Estimator(
         model_fn=model_fn, model_dir=config.nn_model_dir, config=run_config, params=params)
 
     tf.estimator.train_and_evaluate(model, train_spec, eval_spec)
     test_predictions = model.predict(input_fn=data_reader.predict_test_fn)
-    print("MAE of test set: {:.3f}".format(data_reader.loss_of_predict_test(test_predictions)))
-    predictions = model.predict(input_fn=data_reader.predict_input_fn)
-    data_reader.output_predictions(predictions)
+    print("Accuracy of test set: {:.3f}".format(data_reader.loss_of_predict_test(test_predictions)))
+    # predictions = model.predict(input_fn=data_reader.predict_input_fn)
+    # data_reader.output_predictions(predictions)
 
 
 def main():

@@ -1,103 +1,109 @@
+import gzip
+import pickle
+
 import pandas as pd
+import sklearn.decomposition
+import matplotlib.pyplot as plt
+import numpy as np
 
 import src.config as config
 
 
-def construct_nutrition_id_dict(category_file):
-    nutrition_pair_list = []
-    with open(category_file) as f_in:
+def collect_feature_name(feature_file):
+    unique_feature_list = []
+    with open(feature_file) as f_in:
         for line in f_in:
-            raw_list = line.split('^')
-            nutrition_id = raw_list[0].strip('~')
-            nutrition_name = raw_list[3].strip('~')
-            nutrition_pair_list.append((nutrition_id, nutrition_name))
-    return nutrition_pair_list
+            new_line = line.strip()
+            index, feature_name = new_line.split()
+            unique_feature_list.append("{}-{}".format(index, feature_name))
+    return unique_feature_list
 
 
-def read_data(df_columns, data_file):
-    def add_more_nutrition(_current_food_series, _nutrition_id, _mean_value, _source_count):
-        source_filter = 0
-        if _source_count >= source_filter:
-            _current_food_series[_nutrition_id] = _mean_value
-
-    series_list = []
-    current_food_series = pd.Series(name="00000")
-    with open(data_file) as f_in:
-        for line in f_in:
-            raw_list = line.split('^')
-            food_id = raw_list[0].strip('~')
-            nutrition_id = raw_list[1].strip('~')
-            mean_value = float(raw_list[2])
-            source_count = int(raw_list[3])
-            if food_id != current_food_series.name:
-                series_list.append(current_food_series)
-                current_food_series = pd.Series(name=food_id)
-            add_more_nutrition(current_food_series, nutrition_id, mean_value, source_count)
-    result_df = pd.DataFrame(series_list, columns=df_columns)
-    return result_df
+def read_data(df_column_name, feature_data_file, label_data_file):
+    feature_df = pd.read_csv(feature_data_file, delim_whitespace=True, names=df_column_name)
+    label_df = pd.read_csv(label_data_file, delim_whitespace=True, names=[config.label_col])
+    label_df -= 1
+    # if dummy:
+    #     label_dummy_df = pd.get_dummies(label_df[config.label_col], prefix=config.label_col)
+    #     result_df = pd.concat([feature_df, label_df, label_dummy_df], axis=1, sort=False)
+    # else:
+    #     result_df = pd.concat([feature_df, label_df], axis=1, sort=False)
+    return feature_df, label_df
 
 
-def statistics(data_frame, nutrition_pair_list, output_file):
-    raw_list = list(zip(*nutrition_pair_list))
-    nutrition_series = pd.Series(raw_list[1], index=raw_list[0])
-    count_series = data_frame.count()
-    total_food_num = len(data_frame)
-    ratio_series = count_series / total_food_num
-
-    final_df = pd.DataFrame({'Num': count_series, 'Ratio': ratio_series, 'Name': nutrition_series})
-    final_df.to_excel(output_file)
+def pca_reduce(data_frame, pca, final_var_num):
+    new_array = pca.transform(data_frame)
+    return new_array[:, :final_var_num]
 
 
-def select_features(
-        data_frame, output_training_file, output_predicting_features_file,
-        output_predicting_labels_file):
-    threshold_ratio = 0.55
-    count_series = data_frame.count()
-    total_food_num = len(data_frame)
-    above_threshold_feature_index = count_series[count_series > total_food_num * threshold_ratio].index
-    aa_feature_columns = pd.Index(config.aa_feature_list)
-    important_features_df = pd.read_excel(config.important_features_file)
-    important_features_columns = pd.Index(
-        [str(i) for i in important_features_df[important_features_df['Chosen'] > 0].index])
-    input_feature_columns = important_features_columns.difference(aa_feature_columns)
-
-    training_data_frame = data_frame[important_features_columns].dropna()
-    print(training_data_frame)
-    training_data_frame.to_pickle(output_training_file, compression='gzip')
-
-    data_frame_with_all_features = data_frame[input_feature_columns].dropna()
-    training_data_index = training_data_frame.index
-    predicting_data_index = data_frame_with_all_features.index.difference(training_data_index)
-    predicting_input_data_frame = data_frame.loc[predicting_data_index][input_feature_columns]
-    predicting_output_data_frame = data_frame.loc[predicting_data_index][aa_feature_columns]
-    print(predicting_input_data_frame)
-    print(predicting_output_data_frame)
-    predicting_input_data_frame.to_pickle(output_predicting_features_file, compression='gzip')
-    predicting_output_data_frame.to_pickle(output_predicting_labels_file, compression='gzip')
+def statistics(data_frame, output_file):
+    # PCA result
+    # label_df = data_frame.loc[:, [config.label_col]]
+    # feature_df = data_frame.drop(config.label_col, axis=1)
+    pca = sklearn.decomposition.PCA()
+    # new_feature_array = pca.fit_transform(feature_df, label_df)
+    new_feature_array = pca.fit_transform(data_frame)
+    # print(pca.explained_variance_ratio_[:10])
+    select_var_num = np.count_nonzero(pca.explained_variance_ratio_ > 1e-3)
+    print(select_var_num)
+    print(np.sum(pca.explained_variance_ratio_[:select_var_num]))
+    fig, ax = plt.subplots()
+    ax.scatter(new_feature_array[:, 1], new_feature_array[:, 2])
+    fig, ax = plt.subplots()
+    bar_plot_variance_ratio = pca.explained_variance_ratio_[1:30]
+    x_loc = np.arange(0, len(bar_plot_variance_ratio))
+    ax.bar(x_loc, bar_plot_variance_ratio)
+    output_dict = {'select_var_num': select_var_num, 'pca': pca}
+    with gzip.open(output_file, 'w') as f_out:
+        pickle.dump(output_dict, f_out)
+    # plt.show()
+    return pca, select_var_num
 
 
-def process_data():
-    # nutrition_pair_list = construct_nutrition_id_dict(config.nutrition_category_file)
-    complete_df = pd.read_pickle(config.output_pickle_gz_file)
-    # statistics(complete_df, nutrition_pair_list, config.complete_stat)
-
-    # filtered_df = pd.read_pickle(config.filtered_output_pickle_gz_file)
-    # statistics(filtered_df, nutrition_pair_list, config.filtered_stat)
-    select_features(
-        complete_df, config.training_output_file, config.predicting_features_file,
-        config.predicting_labels_file)
+def process_data(train_feature_df, test_feature_df):
+    pca, select_var_num = statistics(train_feature_df, config.output_parameter_file)
+    train_array = pca_reduce(train_feature_df, pca, select_var_num)
+    test_array = pca_reduce(test_feature_df, pca, select_var_num)
+    column_list = ["PC_{}".format(i + 1) for i in range(train_array.shape[1])]
+    reduced_train_feature_df = pd.DataFrame(train_array, columns=column_list)
+    reduced_test_feature_df = pd.DataFrame(test_array, columns=column_list)
+    return reduced_train_feature_df, reduced_test_feature_df
 
 
 def read_and_formulate_data():
-    nutrition_pair_list = construct_nutrition_id_dict(config.nutrition_category_file)
-    nutrition_id_list = list(zip(*nutrition_pair_list))[0]
-    result_df = read_data(nutrition_id_list, config.nutrition_data_file)
-    result_df.to_pickle(config.output_pickle_gz_file, compression='gzip')
+    unique_feature_name_list = collect_feature_name(config.feature_list_file)
+    train_feature_df, train_label_df = read_data(
+        unique_feature_name_list, config.train_data_x_file, config.train_data_y_file)
+    test_feature_df, test_label_df = read_data(
+        unique_feature_name_list, config.test_data_x_file, config.test_data_y_file)
+    reduced_train_feature_df, reduced_test_feature_df = process_data(train_feature_df, test_feature_df)
+    train_complete_df = pd.concat([train_feature_df, train_label_df], axis=1, sort=False)
+    train_reduced_df = pd.concat([reduced_train_feature_df, train_label_df], axis=1, sort=False)
+    test_complete_df = pd.concat([test_feature_df, test_label_df], axis=1, sort=False)
+    test_reduced_df = pd.concat([reduced_test_feature_df, test_label_df], axis=1, sort=False)
+    train_complete_df.to_pickle(config.train_data_frame_file, compression='gzip')
+    train_reduced_df.to_pickle(config.reduced_train_data_frame_file, compression='gzip')
+    test_complete_df.to_pickle(config.test_data_frame_file, compression='gzip')
+    test_reduced_df.to_pickle(config.reduced_test_data_frame_file, compression='gzip')
+
+
+def check_repeat(repeat_col_dict, data_x_file):
+    line_count = 100
+    first_name = list(repeat_col_dict.keys())[0]
+    with open(data_x_file) as f_in:
+        for line in f_in:
+            if line_count < 0:
+                break
+            number_list = line.split()
+            repeat_col_list = repeat_col_dict[first_name]
+            print([number_list[repeat_col] for repeat_col in repeat_col_list])
+            line_count -= 1
 
 
 def main():
-    # read_and_formulate_data()
-    process_data()
+    read_and_formulate_data()
+    # process_data()
+    plt.show()
 
 
 if __name__ == '__main__':

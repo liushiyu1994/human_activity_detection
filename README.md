@@ -12,3 +12,11 @@ The final NN consists of 4 layers:
 4. Output layer: 6 as final class number of human activity. No activation.
 
 Choose the class with maximal value in final logits as output in evaluating and predicting processes, while use cross entropy as loss function in training process. Stochastic gradient descent (SGD) is utilized to minimize loss functions. Detailed parameters can be reached in scripts.
+
+Loss function during training:
+
+![Loss function values](./figures/Loss.png "Loss function values")
+
+Accuracy during training:
+
+![Loss function values](./figures/Accuracy.png "Loss function values")

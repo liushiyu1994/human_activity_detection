@@ -19,4 +19,4 @@ Loss function during training:
 
 Accuracy during training:
 
-![Loss function values](./figures/Accuracy.png "Loss function values")
+![Accuracy values](./figures/Accuracy.png "Accuracy")

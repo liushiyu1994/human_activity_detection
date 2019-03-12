@@ -1,0 +1,6 @@
+*.xlsx
+data/nn_model/
+.idea/
+UCI HAR dataset/
+Inertial Signals/
+__pycache__/

@@ -1,5 +1,8 @@
 import gzip
 import pickle
+import os
+import multiprocessing as mp
+import json
 
 import numpy as np
 import pandas as pd
@@ -183,7 +186,33 @@ def training_and_testing(argv):
 def main():
     tf.logging.set_verbosity(tf.logging.INFO)
     tf.app.run(main=training_and_testing, argv=None)
+    # running_config = tf.ConfigProto(
+    #     device_count={"CPU": 7},  # limit to num_cpu_core CPU usage
+    #     inter_op_parallelism_threads=1,
+    #     intra_op_parallelism_threads=4,
+    #     log_device_placement=True)
+    # with tf.Session(config=running_config) as sess:
+    #      sess.run
+
+
+def parallel_main():
+    cluster = {"master": ["localhost:2222"],
+               "worker": ["localhost:2223", "localhost:2224", "localhost:2225"],
+               "ps": ["localhost:2221"]}
+    p_list = []
+    for job_name, task_list in cluster.items():
+        for index, task in enumerate(task_list):
+            current_task_dict = {'type': job_name, 'index': index}
+            current_tf_config = {'cluster': cluster, 'task': current_task_dict}
+            os.environ['TF_CONFIG'] = json.dumps(current_tf_config)
+            p = mp.Process(target=main, args=())
+            p_list.append(p)
+            p.start()
+
+    for p in p_list:
+        p.join()
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    parallel_main()

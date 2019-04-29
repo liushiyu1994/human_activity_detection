@@ -5,8 +5,9 @@ training_data_direct = "{}/train".format(data_direct)
 test_data_direct = "{}/test".format(data_direct)
 output_data_direct = "{}/output".format(data_direct)
 
-feature_direct = "./UCI HAR Dataset"
-feature_list_file = "{}/features.txt".format(feature_direct)
+# feature_direct = "./UCI HAR Dataset"
+# feature_list_file = "{}/features.txt".format(feature_direct)
+feature_list_file = "{}/features.txt".format(data_direct)
 
 train_data_x_file = "{}/X_train.txt".format(training_data_direct)
 train_data_y_file = "{}/y_train.txt".format(training_data_direct)
